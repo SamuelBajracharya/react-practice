@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind utilities;
+@tailwind components;
+
+*{
+    box-sizing: border-box;
+}
+
+html {
+    width: 100vw;
+    overflow-x: hidden;
+}
+body {
+    width: 100vw;
+    overflow-x: hidden;
+}
+
+h1,h2,h3,h4,h5,h6{
+    font-family:  Times, 'Times New Roman', serif;
+}
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
