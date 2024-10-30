@@ -1,0 +1,194 @@
+﻿// SIW_YGSL - Automatic letters facility
+//
+var sits_ygsl_version = "910.1"; //file version number
+var current_page = 0;
+//totalpages defined by program
+sits_attach_event(window,"load",init_ygsl);
+
+function init_ygsl(){ 
+  if ( typeof totalpages === "undefined" ){
+    return;
+  }  
+  $(".sv-form-pagination").css("display","none");       // Hide Pagination
+  
+  $("#srlpagelinksnavstart").bind("click",{prevornext:"S"},switch_sets);
+  $("#srlpagelinksnavprev").bind("click",{prevornext:"P"},switch_sets);
+  
+  $(".sv-form-pagination ul li[data-page]").bind("click",ygslget_page);
+  $(".sv-form-pagination ul li[data-page=1]").trigger("click");         // Load Page 1
+  
+  $("#srlpagelinksnavnext").bind("click",{prevornext:"N"},switch_sets);
+  $("#srlpagelinksnavend").bind("click",{prevornext:"E"},switch_sets);
+  
+  switch_sets("");
+}
+
+function ygslget_pageA(event){
+  var curpage = event.target.value ;
+  $(".sv-form-pagination ul li[data-page="+curpage+"]").trigger("click");
+}
+
+function ygslget_page(){
+  var thepage = Number($(this).attr("data-page"));
+  if( thepage == current_page ){
+    return;
+  }
+  var theset = $(this).attr("data-set");
+  current_page = Number(thepage);  // Make sure it is a number
+  $("#ygslset").html(theset);
+  if (thepage == undefined) {
+    return false;  
+  }
+  
+  $("#srlpage").fadeOut();          // Hide previous contents
+  $(".sv-active").removeClass("sv-active");
+  
+  sits_dialog(ygsl_bp(5),ygsl_bp(6),"",true,true,false,"","sits_dialog",true,0.4);
+  
+  var query = "PAGE="+thepage+"&NKEY="+sits_escape_url(sits_get_value("YGSLNKEY"))+"&ISSC="+sits_escape_url(ygslissc)	;
+  sits_send_query("POST","SIW_YGSL.gslpage",query,false,"ygsl_ret_func_getpage") ; // 5th parameter to specify Javascript function to run on return.
+  
+  var floor  = 1 ;
+  var ceiling = 5;
+  if ( ( thepage - 3 ) < 0 ){
+    floor = 1;
+    ceiling = 5;
+  }else{  
+    if ( (thepage + 3 ) >  totalpages ){
+      ceiling = totalpages;
+      floor = totalpages - 4;
+    }else{
+      floor = thepage - 2;
+      ceiling = thepage + 2;
+    }
+  }  
+  smart_pages(floor,ceiling);
+  $(this).find("a").parent().addClass("sv-active");
+}
+
+function ygsl_ret_func_getpage(response){
+  sits_dialog_close(true,"sits_dialog");
+  var sub = response.substr(0,4);
+  response = response.substr(4);
+  if (sub!="<OK>") { 
+    error_box(sub+response,sub,"sits_dialog");  
+    return;
+  }
+  var obj = null;
+  obj = sits_parse_json(response);  //831_+ method
+  //setTimeout(function(){sits_dialog_close(true,"sits_dialog")},500)
+  sits_progress(ygsl_bp(5),obj.PKEY,2,"",ygsl_build_page)    ;
+}
+
+function ygsl_build_page(boo,response){
+  $(".sv-form-pagination").show();
+  $("#srlpage").html(response);
+  $("#srlpage").fadeIn();
+  sits_announce($("#ygslset").closest("p").html()); //read out 
+  
+
+}
+
+function switch_sets(event){
+ 
+  var prevornext = "";
+  var thepage = 0;
+  
+  if ( event ){
+    prevornext = event.data.prevornext;
+  }
+  if ( current_page <= 1          && ( prevornext == "S" || prevornext == "P" ) ){return;}
+  if ( current_page >= totalpages && ( prevornext == "E" || prevornext == "N" ) ){return;}
+  
+  switch(prevornext){
+  case  "S" :       // Start
+    thepage = 1;
+    break;
+  case  "P" :       // Previous
+    thepage = current_page - 1;
+    break;
+  case "N":         // Next
+    thepage = current_page + 1;
+    break;
+  case  "E" :       // End
+    thepage = totalpages;
+    break;  
+  }
+  var floor  = thepage - 2;
+  var ceiling = thepage + 2;  
+  
+  smart_pages(floor,ceiling);
+  
+  if ( event != "" ) {
+    $(".sv-active").removeClass("sv-active");
+    $(".sv-form-pagination ul li[data-page="+thepage+"]").trigger("click");         // Load current Page
+  }
+
+}
+
+function smart_pages(floor,ceiling){
+ 
+  if ( ceiling >= totalpages ){
+      ceiling = totalpages;
+      floor = totalpages - 4; 
+  }
+  if (floor < 1 ){floor = 1 ;ceiling = 5;}
+  
+  if ( current_page == 1 ){ // If on first - disable first/previous buttons
+    $("#srlpagelinksnavstart").addClass("sv-disabled");
+    $("#srlpagelinksnavprev").addClass("sv-disabled");
+  } else {
+    $("#srlpagelinksnavstart").removeClass("sv-disabled");
+    $("#srlpagelinksnavprev").removeClass("sv-disabled");
+  }
+  
+  $(".sv-form-pagination ul li[data-page]").each(function(){
+    $(this).css("display","");
+     if ($(this).attr("data-page") < floor){
+	     sits_hide(this);
+    }
+    if ($(this).attr("data-page") > ceiling){
+	    sits_hide(this);
+    } 
+    if ($(this).attr("data-page") >= floor && $(this).attr("data-page") <= ceiling ){
+	    sits_show(this);
+    }     
+  });
+
+  if ( current_page == totalpages ){ // If on last - disable next/last buttons
+    $("#srlpagelinksnavnext").addClass("sv-disabled");
+    $("#srlpagelinksnavend").addClass("sv-disabled");
+  } else {
+    $("#srlpagelinksnavnext").removeClass("sv-disabled");
+    $("#srlpagelinksnavend").removeClass("sv-disabled");
+  }
+}
+
+function error_box(response,sub,tid) {
+  if(typeof(tid)=="undefined" || tid=="") {
+    tid = "sits_dialog";
+  }     
+  var obj = null;
+  var btn = {};
+  if (sub=="~NO~") {
+    obj = sits_parse_json(response);  //831_+ method
+    btn[obj.BUTTON] = function() { 
+	    sits_dialog_close(true,tid); //add "close" button  may want to call from end of other functions 
+	  }; 
+    sits_dialog(obj.TITLE, obj.TEXT, btn, true, true, false, 0, tid, true, 35);
+  }else {
+     btn["CLOSE"] = function() { 
+		  sits_dialog_close(true,tid); //add "close" button  may want to call from end of other functions 
+     }; 
+    if(response.indexOf("SIW-999")>-1) { //check for hidden field error
+      sits_dialog(sibulk_bp(41), "<img src=\"../images/cross.gif\">"+sibulk_bp(40), btn, true, true, false, 0, tid, true, 35);
+    }else{       
+      sits_dialog("Unknown error", "<img src=\"../images/cross.gif\">Unknown error<br><hr><br>"+response, btn, true, true, false, 0, tid, true, 35);
+    }
+  }
+}        
+
+function ygsl_bp(num) {
+  return sits_get_bptext(ygslbparray,num);
+}   
+
